@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shops Balance Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
   <style>
     body {
       font-family: "Segoe UI", sans-serif;
@@ -67,15 +66,12 @@
       margin-top: 15px;
       text-align: center;
     }
-
-    /* ---------- Compact Dashboard Totals Bar ---------- */
     #totalsRow {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       margin-top: 15px;
     }
-
     .total-card {
       flex: 1 1 120px;
       background: #0077cc;
@@ -93,6 +89,13 @@
       font-size: 10px;
       opacity: 0.8;
     }
+    #teamDashboardLink {
+      margin-bottom: 10px;
+    }
+    a.shop-link {
+      color: #0077cc;
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -105,6 +108,9 @@
     <button id="exportBtn">💾 Export CSV</button>
     <button id="resetBtn" style="background:#888;">🔄 Reset</button>
   </div>
+
+  <!-- Link to open filtered dashboard in new tab -->
+  <div id="teamDashboardLink"></div>
 
   <table id="shopTable">
     <thead><tr id="tableHeader"></tr></thead>
