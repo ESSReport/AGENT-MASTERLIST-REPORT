@@ -49,7 +49,20 @@ async function loadDashboard() {
   const data = await fetchShopBalance();
   rawData = data;
   buildTeamLeaderDropdown(data);
+
+  // Auto-filter if URL contains teamLeader param
+  const urlParams = new URLSearchParams(window.location.search);
+  const teamLeaderParam = urlParams.get("teamLeader");
+
+  if (teamLeaderParam) {
+    document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
+    // Hide only the dropdown and dashboard link, keep search/export/reset
+    document.getElementById("leaderFilter").style.display = "none";
+    document.getElementById("teamDashboardLink").style.display = "none";
+  }
+
   buildSummary(data);
+  if (teamLeaderParam) filterData(); // apply filter automatically
 }
 
 function buildTeamLeaderDropdown(data) {
@@ -148,7 +161,15 @@ function renderTable() {
     const tr = document.createElement("tr");
     HEADERS.forEach(h => {
       const td = document.createElement("td");
-      if (h === "SHOP NAME" || h === "TEAM LEADER") {
+      if (h === "SHOP NAME") {
+        const a = document.createElement("a");
+        a.textContent = r[h] || "";
+        a.href = `shop_dashboard.html?shopName=${encodeURIComponent(r[h] || "")}`;
+        a.target = "_blank";
+        a.className = "shop-link";
+        td.appendChild(a);
+        td.classList.add("left");
+      } else if (h === "TEAM LEADER") {
         td.textContent = r[h] || "";
         td.classList.add("left");
       } else {
@@ -164,6 +185,7 @@ function renderTable() {
 
   updatePagination();
   renderTotals();
+  updateTeamDashboardLink();
 }
 
 function updatePagination() {
@@ -189,6 +211,23 @@ function renderTotals() {
                       <div>${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>`;
     totalsDiv.appendChild(card);
   });
+}
+
+/* ---------- New Tab Link for Team Leader ---------- */
+function updateTeamDashboardLink() {
+  const leader = document.getElementById("leaderFilter").value;
+  const linkDiv = document.getElementById("teamDashboardLink");
+  
+  if (leader && leader !== "ALL") {
+    const url = `${window.location.origin}${window.location.pathname}?teamLeader=${encodeURIComponent(leader)}`;
+    linkDiv.innerHTML = `
+      <a href="${url}" target="_blank" style="color:#0077cc; font-weight:bold; text-decoration:underline;">
+        Open ${leader} Dashboard in New Tab
+      </a>
+    `;
+  } else {
+    linkDiv.innerHTML = "";
+  }
 }
 
 /* ---------- EVENT HANDLERS ---------- */
