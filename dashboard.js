@@ -1,3 +1,5 @@
+/* dashboard.js - defensive, mobile-safe CSV export, re-attached handlers */
+
 const SHEET_ID = "1lukJC1vKSq02Nus23svZ21_pp-86fz0mU1EARjalCBI";
 const OPENSHEET_URL = `https://opensheet.elk.sh/${SHEET_ID}/SHOPS%20BALANCE`;
 
@@ -21,7 +23,7 @@ const HEADERS = [
 
 const cleanKey = (k) => String(k || "").replace(/\s+/g, " ").trim().toUpperCase();
 const parseNumber = (v) => {
-  if (!v) return 0;
+  if (v === null || typeof v === "undefined" || v === "") return 0;
   const s = String(v).replace(/[,\s]/g, "").replace(/\((.*)\)/, "-$1");
   const n = Number(s);
   return isFinite(n) ? n : 0;
@@ -38,6 +40,7 @@ let cachedData = [];
 let currentPage = 1;
 const rowsPerPage = 20;
 
+/* ---------- FETCH ---------- */
 async function fetchShopBalance() {
   const res = await fetch(OPENSHEET_URL);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -45,28 +48,47 @@ async function fetchShopBalance() {
   return json.map(normalize);
 }
 
+/* ---------- LOAD / INIT ---------- */
 async function loadDashboard() {
-  const data = await fetchShopBalance();
-  rawData = data;
-  buildTeamLeaderDropdown(data);
+  try {
+    const data = await fetchShopBalance();
+    rawData = data;
+    buildTeamLeaderDropdown(data);
 
-  // Auto-filter if URL contains teamLeader param
-  const urlParams = new URLSearchParams(window.location.search);
-  const teamLeaderParam = urlParams.get("teamLeader");
+    // Auto-filter if URL contains teamLeader param
+    const urlParams = new URLSearchParams(window.location.search);
+    const teamLeaderParam = urlParams.get("teamLeader");
 
-  if (teamLeaderParam) {
-    document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
-    // Hide only the dropdown and dashboard link, keep search/export/reset
-    document.getElementById("leaderFilter").style.display = "none";
-    document.getElementById("teamDashboardLink").style.display = "none";
+    if (teamLeaderParam) {
+      const lf = document.getElementById("leaderFilter");
+      if (lf) {
+        lf.value = teamLeaderParam.toUpperCase();
+        lf.style.display = "none"; // hide dropdown only
+      }
+      const linkDiv = document.getElementById("teamDashboardLink");
+      if (linkDiv) linkDiv.style.display = "none";
+    }
+
+    buildSummary(data);
+
+    if (teamLeaderParam) filterData();
+  } catch (err) {
+    console.error("Failed to load dashboard:", err);
+    const container = document.body || document.documentElement;
+    if (container) {
+      const el = document.createElement("div");
+      el.style.color = "red";
+      el.style.padding = "20px";
+      el.textContent = "Failed to load data. Check network or sheet URL.";
+      container.prepend(el);
+    }
   }
-
-  buildSummary(data);
-  if (teamLeaderParam) filterData(); // apply filter automatically
 }
 
+/* ---------- BUILDERS ---------- */
 function buildTeamLeaderDropdown(data) {
   const dropdown = document.getElementById("leaderFilter");
+  if (!dropdown) return;
   dropdown.innerHTML = '<option value="ALL">All Team Leaders</option>';
   const leaders = [...new Set(
     data.map(r => (r["TEAM LEADER"] || "").trim().toUpperCase())
@@ -137,13 +159,17 @@ function buildSummary(data) {
   });
 
   cachedData = Object.values(summary);
-  filteredData = cachedData;
+  filteredData = cachedData.slice(); // clone
+  currentPage = 1;
   renderTable();
 }
 
+/* ---------- RENDER ---------- */
 function renderTable() {
   const tableHead = document.getElementById("tableHeader");
   const tableBody = document.getElementById("tableBody");
+  if (!tableHead || !tableBody) return;
+
   tableHead.innerHTML = "";
   tableBody.innerHTML = "";
 
@@ -153,6 +179,11 @@ function renderTable() {
     if (h === "SHOP NAME" || h === "TEAM LEADER") th.classList.add("left");
     tableHead.appendChild(th);
   });
+
+  // Ensure currentPage is within bounds
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
 
   const start = (currentPage - 1) * rowsPerPage;
   const pageData = filteredData.slice(start, start + rowsPerPage);
@@ -173,7 +204,8 @@ function renderTable() {
         td.textContent = r[h] || "";
         td.classList.add("left");
       } else {
-        td.textContent = (Number(r[h]) || 0).toLocaleString(undefined, {
+        const val = Number(r[h]) || 0;
+        td.textContent = val.toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
@@ -189,22 +221,25 @@ function renderTable() {
 }
 
 function updatePagination() {
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-  document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
-  document.getElementById("prevPage").disabled = currentPage === 1;
-  document.getElementById("nextPage").disabled = currentPage === totalPages || totalPages === 0;
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+  const pageInfo = document.getElementById("pageInfo");
+  if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+
+  const prevBtn = document.getElementById("prevPage");
+  const nextBtn = document.getElementById("nextPage");
+  if (prevBtn) prevBtn.disabled = currentPage === 1;
+  if (nextBtn) nextBtn.disabled = currentPage === totalPages || totalPages === 0;
 }
 
-/* ---------- Compact Dashboard Totals Bar ---------- */
+/* ---------- Totals ---------- */
 function renderTotals() {
   const totalsDiv = document.getElementById("totalsRow");
+  if (!totalsDiv) return;
   totalsDiv.innerHTML = "";
 
   HEADERS.forEach(h => {
     if (["SHOP NAME", "TEAM LEADER"].includes(h)) return;
-
     const total = filteredData.reduce((a, b) => a + (parseNumber(b[h]) || 0), 0);
-
     const card = document.createElement("div");
     card.className = "total-card";
     card.innerHTML = `<div>${h}</div>
@@ -213,11 +248,13 @@ function renderTotals() {
   });
 }
 
-/* ---------- New Tab Link for Team Leader ---------- */
+/* ---------- Team Leader Link ---------- */
 function updateTeamDashboardLink() {
-  const leader = document.getElementById("leaderFilter").value;
+  const leaderEl = document.getElementById("leaderFilter");
   const linkDiv = document.getElementById("teamDashboardLink");
-  
+  if (!linkDiv) return;
+  const leader = leaderEl ? leaderEl.value : "ALL";
+
   if (leader && leader !== "ALL") {
     const url = `${window.location.origin}${window.location.pathname}?teamLeader=${encodeURIComponent(leader)}`;
     linkDiv.innerHTML = `
@@ -230,51 +267,114 @@ function updateTeamDashboardLink() {
   }
 }
 
-/* ---------- EVENT HANDLERS ---------- */
-document.getElementById("leaderFilter").addEventListener("change", filterData);
-document.getElementById("searchInput").addEventListener("input", filterData);
-document.getElementById("prevPage").addEventListener("click", () => { currentPage--; renderTable(); });
-document.getElementById("nextPage").addEventListener("click", () => { currentPage++; renderTable(); });
-document.getElementById("resetBtn").addEventListener("click", () => {
-  document.getElementById("leaderFilter").value = "ALL";
-  document.getElementById("searchInput").value = "";
-  filteredData = cachedData;
-  currentPage = 1;
-  renderTable();
-});
+/* ---------- FILTER / EVENTS ---------- */
+function filterData() {
+  const leaderEl = document.getElementById("leaderFilter");
+  const searchEl = document.getElementById("searchInput");
+  const leader = leaderEl ? leaderEl.value : "ALL";
+  const search = searchEl ? String(searchEl.value || "").trim().toUpperCase() : "";
 
-/* ---------- UNIVERSAL CSV EXPORT ---------- */
-function exportCSV() {
-  let csv = HEADERS.join(",") + "\n";
-  filteredData.forEach(r => {
-    const row = HEADERS.map(h => `"${r[h] || 0}"`).join(",");
-    csv += row + "\n";
+  filteredData = cachedData.filter(r => {
+    const matchLeader = leader === "ALL" || (r["TEAM LEADER"] || "").toUpperCase() === leader;
+    const matchSearch = (r["SHOP NAME"] || "").toUpperCase().includes(search);
+    return matchLeader && matchSearch;
   });
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
+  currentPage = 1;
+  renderTable();
+}
 
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+function attachEventHandlers() {
+  const leaderFilter = document.getElementById("leaderFilter");
+  const searchInput = document.getElementById("searchInput");
+  const prevPage = document.getElementById("prevPage");
+  const nextPage = document.getElementById("nextPage");
+  const resetBtn = document.getElementById("resetBtn");
+  const exportBtn = document.getElementById("exportBtn");
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "shops_balance.csv";
-  link.style.display = "none";
-  document.body.appendChild(link);
+  if (leaderFilter) leaderFilter.addEventListener("change", filterData);
+  if (searchInput) searchInput.addEventListener("input", filterData);
+  if (prevPage) prevPage.addEventListener("click", () => { if (currentPage>1) { currentPage--; renderTable(); } });
+  if (nextPage) nextPage.addEventListener("click", () => { currentPage++; renderTable(); });
+  if (resetBtn) resetBtn.addEventListener("click", () => {
+    if (leaderFilter) leaderFilter.value = "ALL";
+    if (searchInput) searchInput.value = "";
+    filteredData = cachedData.slice();
+    currentPage = 1;
+    renderTable();
+  });
 
-  if (isIOS) {
-    // iPhone/iPad Safari workaround
-    window.open(url, "_blank");
-    alert("📱 On iPhone/iPad: Tap the Share button → 'Save to Files' to download your CSV.");
-  } else {
-    // Works on desktop + Android
-    link.click();
+  if (exportBtn) exportBtn.addEventListener("click", exportCSV);
+}
+
+/* ---------- UNIVERSAL CSV EXPORT ---------- */
+function csvEscape(value) {
+  // wrap value in quotes and escape existing quotes
+  if (value === null || typeof value === "undefined") value = "";
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function exportCSV() {
+  try {
+    // build CSV
+    let csv = HEADERS.join(",") + "\n";
+    filteredData.forEach(r => {
+      const row = HEADERS.map(h => {
+        // prefer original string value if present, else numeric
+        const v = (r[h] !== undefined && r[h] !== null && r[h] !== "") ? r[h] : 0;
+        return csvEscape(v);
+      }).join(",");
+      csv += row + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "shops_balance.csv";
+    link.style.display = "none";
+    document.body.appendChild(link);
+
+    if (isIOS) {
+      // iOS: open in new tab (user must Save/Share)
+      window.open(url, "_blank");
+      // show unobtrusive message instead of alert if desired:
+      showTemporaryMessage("📱 On iPhone/iPad: tap Share → 'Save to Files' to save the CSV.", 7000);
+    } else {
+      // desktop & Android: trigger download
+      link.click();
+    }
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Export failed:", err);
+    showTemporaryMessage("Export failed. Check console for details.", 5000);
   }
+}
 
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+/* ---------- small helper message ---------- */
+function showTemporaryMessage(text, ms = 4000) {
+  const existing = document.getElementById("tempMessageDiv");
+  if (existing) existing.remove();
+
+  const d = document.createElement("div");
+  d.id = "tempMessageDiv";
+  d.textContent = text;
+  d.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.12);color:#0077cc;font-weight:600;z-index:9999;";
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), ms);
 }
 
 /* ---------- INIT ---------- */
-loadDashboard();
+function init() {
+  attachEventHandlers();
+  // load data after handlers attached so UI reacts properly
+  loadDashboard();
+}
+
+document.addEventListener("DOMContentLoaded", init);
