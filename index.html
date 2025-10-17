@@ -4,6 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shops Balance Dashboard</title>
+
+  <!-- 🔒 Simple Password Protection -->
+  <script>
+    // Change this password/PIN to your own
+    const encodedPass = "MTIzNA=="; // base64 for "1234"
+    const entered = prompt("SCT2025");
+
+    // check if the entered PIN (encoded) matches the stored one
+    if (btoa(entered) !== encodedPass) {
+      document.body.innerHTML = "<h2 style='color:red;text-align:center;margin-top:40px;'>Access Denied ❌</h2>";
+      throw new Error("Access denied");
+    }
+  </script>
+
   <style>
     body {
       font-family: "Segoe UI", sans-serif;
@@ -98,6 +112,7 @@
     }
   </style>
 </head>
+
 <body>
   <h2>Shops Balance Summary</h2>
   <div class="toolbar">
