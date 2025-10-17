@@ -242,33 +242,38 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   currentPage = 1;
   renderTable();
 });
-document.getElementById("exportBtn").addEventListener("click", exportCSV);
 
-function filterData() {
-  const leader = document.getElementById("leaderFilter").value;
-  const search = document.getElementById("searchInput").value.trim().toUpperCase();
-
-  filteredData = cachedData.filter(r => {
-    const matchLeader = leader === "ALL" || (r["TEAM LEADER"] || "").toUpperCase() === leader;
-    const matchSearch = (r["SHOP NAME"] || "").toUpperCase().includes(search);
-    return matchLeader && matchSearch;
-  });
-
-  currentPage = 1;
-  renderTable();
-}
-
+/* ---------- UNIVERSAL CSV EXPORT ---------- */
 function exportCSV() {
   let csv = HEADERS.join(",") + "\n";
   filteredData.forEach(r => {
     const row = HEADERS.map(h => `"${r[h] || 0}"`).join(",");
     csv += row + "\n";
   });
-  const blob = new Blob([csv], { type: "text/csv" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "shops_balance.csv";
-  a.click();
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "shops_balance.csv";
+  link.style.display = "none";
+  document.body.appendChild(link);
+
+  if (isIOS) {
+    // iPhone/iPad Safari workaround
+    window.open(url, "_blank");
+    alert("📱 On iPhone/iPad: Tap the Share button → 'Save to Files' to download your CSV.");
+  } else {
+    // Works on desktop + Android
+    link.click();
+  }
+
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 /* ---------- INIT ---------- */
