@@ -1,5 +1,3 @@
-/* dashboard.js - defensive, mobile-safe CSV export, re-attached handlers */
-
 const SHEET_ID = "1lukJC1vKSq02Nus23svZ21_pp-86fz0mU1EARjalCBI";
 const OPENSHEET_URL = `https://opensheet.elk.sh/${SHEET_ID}/SHOPS%20BALANCE`;
 
@@ -23,7 +21,7 @@ const HEADERS = [
 
 const cleanKey = (k) => String(k || "").replace(/\s+/g, " ").trim().toUpperCase();
 const parseNumber = (v) => {
-  if (v === null || typeof v === "undefined" || v === "") return 0;
+  if (!v) return 0;
   const s = String(v).replace(/[,\s]/g, "").replace(/\((.*)\)/, "-$1");
   const n = Number(s);
   return isFinite(n) ? n : 0;
@@ -40,7 +38,6 @@ let cachedData = [];
 let currentPage = 1;
 const rowsPerPage = 20;
 
-/* ---------- FETCH ---------- */
 async function fetchShopBalance() {
   const res = await fetch(OPENSHEET_URL);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -48,47 +45,28 @@ async function fetchShopBalance() {
   return json.map(normalize);
 }
 
-/* ---------- LOAD / INIT ---------- */
 async function loadDashboard() {
-  try {
-    const data = await fetchShopBalance();
-    rawData = data;
-    buildTeamLeaderDropdown(data);
+  const data = await fetchShopBalance();
+  rawData = data;
+  buildTeamLeaderDropdown(data);
 
-    // Auto-filter if URL contains teamLeader param
-    const urlParams = new URLSearchParams(window.location.search);
-    const teamLeaderParam = urlParams.get("teamLeader");
+  // Auto-filter if URL contains teamLeader param
+  const urlParams = new URLSearchParams(window.location.search);
+  const teamLeaderParam = urlParams.get("teamLeader");
 
-    if (teamLeaderParam) {
-      const lf = document.getElementById("leaderFilter");
-      if (lf) {
-        lf.value = teamLeaderParam.toUpperCase();
-        lf.style.display = "none"; // hide dropdown only
-      }
-      const linkDiv = document.getElementById("teamDashboardLink");
-      if (linkDiv) linkDiv.style.display = "none";
-    }
-
-    buildSummary(data);
-
-    if (teamLeaderParam) filterData();
-  } catch (err) {
-    console.error("Failed to load dashboard:", err);
-    const container = document.body || document.documentElement;
-    if (container) {
-      const el = document.createElement("div");
-      el.style.color = "red";
-      el.style.padding = "20px";
-      el.textContent = "Failed to load data. Check network or sheet URL.";
-      container.prepend(el);
-    }
+  if (teamLeaderParam) {
+    document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
+    // Hide only the dropdown and dashboard link, keep search/export/reset
+    document.getElementById("leaderFilter").style.display = "none";
+    document.getElementById("teamDashboardLink").style.display = "none";
   }
+
+  buildSummary(data);
+  if (teamLeaderParam) filterData(); // apply filter automatically
 }
 
-/* ---------- BUILDERS ---------- */
 function buildTeamLeaderDropdown(data) {
   const dropdown = document.getElementById("leaderFilter");
-  if (!dropdown) return;
   dropdown.innerHTML = '<option value="ALL">All Team Leaders</option>';
   const leaders = [...new Set(
     data.map(r => (r["TEAM LEADER"] || "").trim().toUpperCase())
@@ -159,17 +137,13 @@ function buildSummary(data) {
   });
 
   cachedData = Object.values(summary);
-  filteredData = cachedData.slice(); // clone
-  currentPage = 1;
+  filteredData = cachedData;
   renderTable();
 }
 
-/* ---------- RENDER ---------- */
 function renderTable() {
   const tableHead = document.getElementById("tableHeader");
   const tableBody = document.getElementById("tableBody");
-  if (!tableHead || !tableBody) return;
-
   tableHead.innerHTML = "";
   tableBody.innerHTML = "";
 
@@ -179,11 +153,6 @@ function renderTable() {
     if (h === "SHOP NAME" || h === "TEAM LEADER") th.classList.add("left");
     tableHead.appendChild(th);
   });
-
-  // Ensure currentPage is within bounds
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
-  if (currentPage > totalPages) currentPage = totalPages;
-  if (currentPage < 1) currentPage = 1;
 
   const start = (currentPage - 1) * rowsPerPage;
   const pageData = filteredData.slice(start, start + rowsPerPage);
@@ -204,8 +173,7 @@ function renderTable() {
         td.textContent = r[h] || "";
         td.classList.add("left");
       } else {
-        const val = Number(r[h]) || 0;
-        td.textContent = val.toLocaleString(undefined, {
+        td.textContent = (Number(r[h]) || 0).toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
@@ -221,25 +189,22 @@ function renderTable() {
 }
 
 function updatePagination() {
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
-  const pageInfo = document.getElementById("pageInfo");
-  if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-
-  const prevBtn = document.getElementById("prevPage");
-  const nextBtn = document.getElementById("nextPage");
-  if (prevBtn) prevBtn.disabled = currentPage === 1;
-  if (nextBtn) nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
+  document.getElementById("prevPage").disabled = currentPage === 1;
+  document.getElementById("nextPage").disabled = currentPage === totalPages || totalPages === 0;
 }
 
-/* ---------- Totals ---------- */
+/* ---------- Totals Row ---------- */
 function renderTotals() {
   const totalsDiv = document.getElementById("totalsRow");
-  if (!totalsDiv) return;
   totalsDiv.innerHTML = "";
 
   HEADERS.forEach(h => {
     if (["SHOP NAME", "TEAM LEADER"].includes(h)) return;
+
     const total = filteredData.reduce((a, b) => a + (parseNumber(b[h]) || 0), 0);
+
     const card = document.createElement("div");
     card.className = "total-card";
     card.innerHTML = `<div>${h}</div>
@@ -248,13 +213,11 @@ function renderTotals() {
   });
 }
 
-/* ---------- Team Leader Link ---------- */
+/* ---------- New Tab Link ---------- */
 function updateTeamDashboardLink() {
-  const leaderEl = document.getElementById("leaderFilter");
+  const leader = document.getElementById("leaderFilter").value;
   const linkDiv = document.getElementById("teamDashboardLink");
-  if (!linkDiv) return;
-  const leader = leaderEl ? leaderEl.value : "ALL";
-
+  
   if (leader && leader !== "ALL") {
     const url = `${window.location.origin}${window.location.pathname}?teamLeader=${encodeURIComponent(leader)}`;
     linkDiv.innerHTML = `
@@ -267,12 +230,23 @@ function updateTeamDashboardLink() {
   }
 }
 
-/* ---------- FILTER / EVENTS ---------- */
+/* ---------- EVENT HANDLERS ---------- */
+document.getElementById("leaderFilter").addEventListener("change", filterData);
+document.getElementById("searchInput").addEventListener("input", filterData);
+document.getElementById("prevPage").addEventListener("click", () => { currentPage--; renderTable(); });
+document.getElementById("nextPage").addEventListener("click", () => { currentPage++; renderTable(); });
+document.getElementById("resetBtn").addEventListener("click", () => {
+  document.getElementById("leaderFilter").value = "ALL";
+  document.getElementById("searchInput").value = "";
+  filteredData = cachedData;
+  currentPage = 1;
+  renderTable();
+});
+document.getElementById("exportBtn").addEventListener("click", exportCSV);
+
 function filterData() {
-  const leaderEl = document.getElementById("leaderFilter");
-  const searchEl = document.getElementById("searchInput");
-  const leader = leaderEl ? leaderEl.value : "ALL";
-  const search = searchEl ? String(searchEl.value || "").trim().toUpperCase() : "";
+  const leader = document.getElementById("leaderFilter").value;
+  const search = document.getElementById("searchInput").value.trim().toUpperCase();
 
   filteredData = cachedData.filter(r => {
     const matchLeader = leader === "ALL" || (r["TEAM LEADER"] || "").toUpperCase() === leader;
@@ -284,45 +258,15 @@ function filterData() {
   renderTable();
 }
 
-function attachEventHandlers() {
-  const leaderFilter = document.getElementById("leaderFilter");
-  const searchInput = document.getElementById("searchInput");
-  const prevPage = document.getElementById("prevPage");
-  const nextPage = document.getElementById("nextPage");
-  const resetBtn = document.getElementById("resetBtn");
-  const exportBtn = document.getElementById("exportBtn");
-
-  if (leaderFilter) leaderFilter.addEventListener("change", filterData);
-  if (searchInput) searchInput.addEventListener("input", filterData);
-  if (prevPage) prevPage.addEventListener("click", () => { if (currentPage>1) { currentPage--; renderTable(); } });
-  if (nextPage) nextPage.addEventListener("click", () => { currentPage++; renderTable(); });
-  if (resetBtn) resetBtn.addEventListener("click", () => {
-    if (leaderFilter) leaderFilter.value = "ALL";
-    if (searchInput) searchInput.value = "";
-    filteredData = cachedData.slice();
-    currentPage = 1;
-    renderTable();
-  });
-
-  if (exportBtn) exportBtn.addEventListener("click", exportCSV);
-}
-
 /* ---------- UNIVERSAL CSV EXPORT ---------- */
-function csvEscape(value) {
-  // wrap value in quotes and escape existing quotes
-  if (value === null || typeof value === "undefined") value = "";
-  return `"${String(value).replace(/"/g, '""')}"`;
-}
-
 function exportCSV() {
   try {
-    // build CSV
+    // Build CSV text
     let csv = HEADERS.join(",") + "\n";
     filteredData.forEach(r => {
       const row = HEADERS.map(h => {
-        // prefer original string value if present, else numeric
         const v = (r[h] !== undefined && r[h] !== null && r[h] !== "") ? r[h] : 0;
-        return csvEscape(v);
+        return `"${String(v).replace(/"/g, '""')}"`;
       }).join(",");
       csv += row + "\n";
     });
@@ -333,48 +277,45 @@ function exportCSV() {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "shops_balance.csv";
-    link.style.display = "none";
-    document.body.appendChild(link);
+    if (isIOS || isMobile) {
+      // Convert blob to text for compatibility
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const dataUrl = e.target.result;
 
-    if (isIOS) {
-      // iOS: open in new tab (user must Save/Share)
-      window.open(url, "_blank");
-      // show unobtrusive message instead of alert if desired:
-      showTemporaryMessage("📱 On iPhone/iPad: tap Share → 'Save to Files' to save the CSV.", 7000);
+        const newWindow = window.open();
+        if (newWindow) {
+          newWindow.document.write(`
+            <a href="data:text/csv;charset=utf-8,${encodeURIComponent(csv)}" download="shops_balance.csv"
+              style="display:block;text-align:center;margin-top:40px;font-family:sans-serif;font-size:16px;color:#0077cc;text-decoration:underline;">
+              📥 Tap here to download CSV
+            </a>
+            <p style="text-align:center;font-family:sans-serif;font-size:14px;color:#555;">
+              On iPhone/iPad: Tap the link, then use “Share → Save to Files”.
+            </p>
+          `);
+          newWindow.document.close();
+        } else {
+          alert("Please allow pop-ups to download the CSV file.");
+        }
+      };
+      reader.readAsText(blob);
     } else {
-      // desktop & Android: trigger download
-      link.click();
+      // Desktop browsers
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "shops_balance.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   } catch (err) {
     console.error("Export failed:", err);
-    showTemporaryMessage("Export failed. Check console for details.", 5000);
+    alert("Export failed. Please try again.");
   }
 }
 
-/* ---------- small helper message ---------- */
-function showTemporaryMessage(text, ms = 4000) {
-  const existing = document.getElementById("tempMessageDiv");
-  if (existing) existing.remove();
-
-  const d = document.createElement("div");
-  d.id = "tempMessageDiv";
-  d.textContent = text;
-  d.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.12);color:#0077cc;font-weight:600;z-index:9999;";
-  document.body.appendChild(d);
-  setTimeout(() => d.remove(), ms);
-}
-
 /* ---------- INIT ---------- */
-function init() {
-  attachEventHandlers();
-  // load data after handlers attached so UI reacts properly
-  loadDashboard();
-}
-
-document.addEventListener("DOMContentLoaded", init);
+loadDashboard();
