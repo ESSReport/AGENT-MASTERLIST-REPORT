@@ -258,50 +258,36 @@ function filterData() {
 
 /* ---------- CSV Export (Cross-Platform) ---------- */
 function exportCSV() {
-  try {
-    let csv = HEADERS.join(",") + "\n";
-    filteredData.forEach(r => {
-      const row = HEADERS.map(h => `"${String(r[h] || 0).replace(/"/g, '""')}"`).join(",");
-      csv += row + "\n";
-    });
+  let csv = HEADERS.join(",") + "\n";
+  filteredData.forEach(r => {
+    const row = HEADERS.map(h => `"${r[h] || 0}"`).join(",");
+    csv += row + "\n";
+  });
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+  // Detect device
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+
+  if (isIOS || isAndroid) {
+    // Mobile workaround: open in new tab
     const url = URL.createObjectURL(blob);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (isIOS || isMobile) {
-      const newTab = window.open();
-      if (newTab) {
-        newTab.document.write(`
-          <html>
-            <head><title>CSV Export</title></head>
-            <body style="font-family:sans-serif;padding:16px;">
-              <h3>📋 Shop Balance CSV Export</h3>
-              <p>Tap “Share → Save to Files” or select all and copy into Excel/Sheets.</p>
-              <textarea style="width:100%;height:70vh;font-family:monospace;font-size:12px;">${csv}</textarea>
-            </body>
-          </html>
-        `);
-        newTab.document.close();
-      } else {
-        alert("Please allow pop-ups to open the CSV preview.");
-      }
+    const newTab = window.open(url, "_blank");
+    if (!newTab) {
+      alert("Please allow popups to download the file.");
     } else {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "shops_balance.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      newTab.document.title = "shops_balance.csv";
     }
-
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    console.error(err);
-    alert("Export failed. Please try again.");
+  } else {
+    // Desktop browsers: direct download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "shops_balance.csv";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
-
 /* ---------- INIT ---------- */
 loadDashboard();
