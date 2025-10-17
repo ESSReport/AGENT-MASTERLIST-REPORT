@@ -56,13 +56,13 @@ async function loadDashboard() {
 
   if (teamLeaderParam) {
     document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
-    // Hide only the dropdown and dashboard link, keep search/export/reset
+    // Hide dropdown and link
     document.getElementById("leaderFilter").style.display = "none";
     document.getElementById("teamDashboardLink").style.display = "none";
   }
 
   buildSummary(data);
-  if (teamLeaderParam) filterData(); // apply filter automatically
+  if (teamLeaderParam) filterData();
 }
 
 function buildTeamLeaderDropdown(data) {
@@ -195,16 +195,14 @@ function updatePagination() {
   document.getElementById("nextPage").disabled = currentPage === totalPages || totalPages === 0;
 }
 
-/* ---------- Totals Row ---------- */
+/* ---------- Totals Bar ---------- */
 function renderTotals() {
   const totalsDiv = document.getElementById("totalsRow");
   totalsDiv.innerHTML = "";
 
   HEADERS.forEach(h => {
     if (["SHOP NAME", "TEAM LEADER"].includes(h)) return;
-
     const total = filteredData.reduce((a, b) => a + (parseNumber(b[h]) || 0), 0);
-
     const card = document.createElement("div");
     card.className = "total-card";
     card.innerHTML = `<div>${h}</div>
@@ -213,7 +211,7 @@ function renderTotals() {
   });
 }
 
-/* ---------- New Tab Link ---------- */
+/* ---------- Team Leader Link ---------- */
 function updateTeamDashboardLink() {
   const leader = document.getElementById("leaderFilter").value;
   const linkDiv = document.getElementById("teamDashboardLink");
@@ -230,7 +228,7 @@ function updateTeamDashboardLink() {
   }
 }
 
-/* ---------- EVENT HANDLERS ---------- */
+/* ---------- Event Listeners ---------- */
 document.getElementById("leaderFilter").addEventListener("change", filterData);
 document.getElementById("searchInput").addEventListener("input", filterData);
 document.getElementById("prevPage").addEventListener("click", () => { currentPage--; renderTable(); });
@@ -258,50 +256,38 @@ function filterData() {
   renderTable();
 }
 
-/* ---------- UNIVERSAL CSV EXPORT ---------- */
+/* ---------- CSV Export (Cross-Platform) ---------- */
 function exportCSV() {
   try {
-    // Build CSV text
     let csv = HEADERS.join(",") + "\n";
     filteredData.forEach(r => {
-      const row = HEADERS.map(h => {
-        const v = (r[h] !== undefined && r[h] !== null && r[h] !== "") ? r[h] : 0;
-        return `"${String(v).replace(/"/g, '""')}"`;
-      }).join(",");
+      const row = HEADERS.map(h => `"${String(r[h] || 0).replace(/"/g, '""')}"`).join(",");
       csv += row + "\n";
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     if (isIOS || isMobile) {
-      // Convert blob to text for compatibility
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const dataUrl = e.target.result;
-
-        const newWindow = window.open();
-        if (newWindow) {
-          newWindow.document.write(`
-            <a href="data:text/csv;charset=utf-8,${encodeURIComponent(csv)}" download="shops_balance.csv"
-              style="display:block;text-align:center;margin-top:40px;font-family:sans-serif;font-size:16px;color:#0077cc;text-decoration:underline;">
-              📥 Tap here to download CSV
-            </a>
-            <p style="text-align:center;font-family:sans-serif;font-size:14px;color:#555;">
-              On iPhone/iPad: Tap the link, then use “Share → Save to Files”.
-            </p>
-          `);
-          newWindow.document.close();
-        } else {
-          alert("Please allow pop-ups to download the CSV file.");
-        }
-      };
-      reader.readAsText(blob);
+      const newTab = window.open();
+      if (newTab) {
+        newTab.document.write(`
+          <html>
+            <head><title>CSV Export</title></head>
+            <body style="font-family:sans-serif;padding:16px;">
+              <h3>📋 Shop Balance CSV Export</h3>
+              <p>Tap “Share → Save to Files” or select all and copy into Excel/Sheets.</p>
+              <textarea style="width:100%;height:70vh;font-family:monospace;font-size:12px;">${csv}</textarea>
+            </body>
+          </html>
+        `);
+        newTab.document.close();
+      } else {
+        alert("Please allow pop-ups to open the CSV preview.");
+      }
     } else {
-      // Desktop browsers
       const a = document.createElement("a");
       a.href = url;
       a.download = "shops_balance.csv";
@@ -312,7 +298,7 @@ function exportCSV() {
 
     URL.revokeObjectURL(url);
   } catch (err) {
-    console.error("Export failed:", err);
+    console.error(err);
     alert("Export failed. Please try again.");
   }
 }
