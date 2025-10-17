@@ -5,153 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shops Balance Dashboard</title>
 
+  <!-- ✅ External CSS file -->
+  <link rel="stylesheet" href="styles.css">
+
   <!-- 🔒 Simple PIN Protection -->
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const encodedPass = "MTEwMTIwMjU="; // base64 for "11012025"
-      const entered = prompt("Enter PIN:");
+    // Change this PIN to your own
+    const encodedPass = "MTEwMTIwMjU="; // base64 for "11012025"
+    const entered = prompt("Enter PIN to access dashboard:");
 
-      // If user cancels or enters wrong PIN
-      if (!entered || btoa(entered) !== encodedPass) {
-        document.body.innerHTML = `
-          <h2 style="color:red;text-align:center;margin-top:40px;">
-            Access Denied ❌
-          </h2>
-        `;
-        return; // stop here
-      }
-
-      // ✅ Correct PIN: reveal dashboard and load script
-      document.getElementById("protectedContent").style.display = "block";
-
-      const script = document.createElement("script");
-      script.src = "dashboard.js"; // your data/dashboard script
-      document.body.appendChild(script);
-    });
+    if (btoa(entered) !== encodedPass) {
+      document.body.innerHTML = `
+        <h2 style="color:red;text-align:center;margin-top:40px;">
+          Access Denied ❌<br>Invalid PIN
+        </h2>`;
+      throw new Error("Access denied");
+    }
   </script>
-
-  <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      background: #f6f8fa;
-      color: #222;
-      padding: 20px;
-    }
-    h2 {
-      margin-bottom: 10px;
-    }
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    select, input[type="text"], button {
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      font-size: 14px;
-    }
-    button {
-      cursor: pointer;
-      background: #0077cc;
-      color: white;
-      border: none;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px 12px;
-      text-align: right;
-    }
-    th.left, td.left {
-      text-align: left;
-    }
-    th {
-      background: #0077cc;
-      color: white;
-      font-weight: 600;
-      white-space: nowrap;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-    tr:nth-child(even) {
-      background: #f2f2f2;
-    }
-    #pagination {
-      margin-top: 15px;
-      text-align: center;
-    }
-    #totalsRow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 15px;
-    }
-    .total-card {
-      flex: 1 1 120px;
-      background: #0077cc;
-      color: white;
-      text-align: center;
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: bold;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .total-card div:first-child {
-      font-size: 10px;
-      opacity: 0.8;
-    }
-    #teamDashboardLink {
-      margin-bottom: 10px;
-    }
-    a.shop-link {
-      color: #0077cc;
-      text-decoration: underline;
-    }
-  </style>
 </head>
 
 <body>
-  <!-- 🔐 Everything below stays hidden until correct PIN is entered -->
-  <div id="protectedContent" style="display:none;">
-    <h2>Shops Balance Summary</h2>
-    <div class="toolbar">
-      <select id="leaderFilter">
-        <option value="ALL">All Team Leaders</option>
-      </select>
-      <input type="text" id="searchInput" placeholder="🔍 Search Shop Name..." />
-      <button id="exportBtn">💾 Export CSV</button>
-      <button id="resetBtn" style="background:#888;">🔄 Reset</button>
-    </div>
+  <h2>Shops Balance Summary</h2>
 
-    <div id="teamDashboardLink"></div>
+  <!-- Toolbar (Filters & Actions) -->
+  <div class="toolbar">
+    <select id="leaderFilter">
+      <option value="ALL">All Team Leaders</option>
+    </select>
 
+    <input type="text" id="searchInput" placeholder="🔍 Search Shop Name..." />
+
+    <button id="exportBtn">💾 Export CSV</button>
+    <button id="resetBtn" style="background:#888;">🔄 Reset</button>
+  </div>
+
+  <!-- Link to open filtered dashboard in new tab -->
+  <div id="teamDashboardLink"></div>
+
+  <!-- Table Container -->
+  <div id="tableContainer">
     <table id="shopTable">
       <thead><tr id="tableHeader"></tr></thead>
       <tbody id="tableBody"></tbody>
     </table>
-
-    <div id="pagination">
-      <button id="prevPage" disabled>⬅ Prev</button>
-      <span id="pageInfo" style="margin:0 12px;">Page 1</span>
-      <button id="nextPage">Next ➡</button>
-    </div>
-
-    <div id="totalsRow"></div>
   </div>
+
+  <!-- Pagination Controls -->
+  <div id="pagination">
+    <button id="prevPage" disabled>⬅ Prev</button>
+    <span id="pageInfo" style="margin:0 12px;">Page 1</span>
+    <button id="nextPage">Next ➡</button>
+  </div>
+
+  <!-- Totals Summary -->
+  <div id="totalsRow"></div>
+
+  <!-- Your dashboard logic -->
+  <script src="dashboard.js"></script>
 </body>
 </html>
