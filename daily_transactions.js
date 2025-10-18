@@ -20,12 +20,9 @@ let filteredTransactions = [];
 // Parse numbers safely
 function parseNumber(v){ return v ? parseFloat(String(v).replace(/,/g,""))||0 : 0; }
 
-// Normalize date to YYYY-MM-DD
-function normalizeDate(dateStr){
-    if(!dateStr) return "";
-    const d = new Date(dateStr);
-    if(isNaN(d)) return "";
-    return d.toISOString().split("T")[0];
+// Normalize shop name
+function normalizeShopName(name){
+    return (name || "").trim().replace(/\s+/g," ").toUpperCase();
 }
 
 // Normalize shop name
@@ -156,3 +153,4 @@ exportBtn.addEventListener("click", exportCSV);
         : "Daily Transaction Dashboard - All Shops";
     await loadTransactions();
 })();
+
