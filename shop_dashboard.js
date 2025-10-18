@@ -1,3 +1,6 @@
+// ------------------------------
+// Configuration
+// ------------------------------
 const SHEET_ID = "1lukJC1vKSq02Nus23svZ21_pp-86fz0mU1EARjalCBI";
 const SHEETS = {
   DEPOSIT: `https://opensheet.elk.sh/${SHEET_ID}/TOTAL%20DEPOSIT`,
@@ -7,25 +10,29 @@ const SHEETS = {
   SHOP_BALANCE: `https://opensheet.elk.sh/${SHEET_ID}/SHOPS%20BALANCE`
 };
 
-const shopName = new URLSearchParams(window.location.search).get("shopName");
+const shopName = new URLSearchParams(window.location.search).get("shopName") || "";
 document.getElementById("shopTitle").textContent = shopName || "Shop Dashboard";
 
 const tbody = document.getElementById("transactionTableBody");
 const totalsRow = document.getElementById("totalsRow");
 const loadingSpinner = document.getElementById("loadingSpinner");
 
+// ------------------------------
+// Utilities
+// ------------------------------
 function parseNumber(v) {
   if (!v) return 0;
-  const s = String(v).replace(/,/g, "").replace(/\((.*)\)/, "-$1");
-  return parseFloat(s) || 0;
+  const s = String(v).replace(/,/g, "").replace(/\((.*)\)/, "-$1").trim();
+  const n = parseFloat(s);
+  return isFinite(n) ? n : 0;
 }
 
 function formatNumber(v) {
   return v !== undefined ? v.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "-";
 }
 
-function normalizeShopName(name) {
-  return (name || "").trim().replace(/\s+/g, " ").toUpperCase();
+function normalizeString(str) {
+  return (str || "").trim().replace(/\s+/g, " ").toUpperCase();
 }
 
 async function fetchSheet(url) {
@@ -34,6 +41,11 @@ async function fetchSheet(url) {
   return res.json();
 }
 
+function rTrim(v){ return String(v||"").trim(); }
+
+// ------------------------------
+// Load Data
+// ------------------------------
 async function loadData() {
   if (!shopName) { alert("❌ No shopName found in URL"); return; }
   loadingSpinner.style.display = "block";
@@ -47,35 +59,52 @@ async function loadData() {
       fetchSheet(SHEETS.SHOP_BALANCE)
     ]);
 
-    const shopRow = shopBalanceData.find(r => normalizeShopName(r.SHOP) === normalizeShopName(shopName));
+    const normalizedShop = normalizeString(shopName);
+
+    // ------------------------------
+    // SHOP BALANCE: B/F, Security Deposit, Team Leader
+    // ------------------------------
+    const shopRow = shopBalanceData.find(r => normalizeString(r["SHOP"]) === normalizedShop);
     const bringForwardBalance = parseNumber(shopRow ? rTrim(shopRow[" BRING FORWARD BALANCE "]) : 0);
-    const secDeposit = parseNumber(shopRow ? shopRow["SECURITY DEPOSIT"] : 0);
-    const teamLeader = shopRow ? shopRow["TEAM LEADER"] : "-";
+    const securityDeposit = parseNumber(shopRow ? rTrim(shopRow["SECURITY DEPOSIT"]) : 0);
+    const teamLeader = shopRow ? rTrim(shopRow["TEAM LEADER"]) : "-";
 
     document.getElementById("infoShopName").textContent = shopName;
     document.getElementById("infoBFBalance").textContent = formatNumber(bringForwardBalance);
-    document.getElementById("infoSecDeposit").textContent = formatNumber(secDeposit);
+    document.getElementById("infoSecDeposit").textContent = formatNumber(securityDeposit);
     document.getElementById("infoTeamLeader").textContent = teamLeader;
 
-    const shopCommRow = commData.find(r => normalizeShopName(r.SHOP) === normalizeShopName(shopName));
-    const dpCommRate = parseFloat(shopCommRow?.["DP COMM"] || 0);
-    const wdCommRate = parseFloat(shopCommRow?.["WD COMM"] || 0);
-    const addCommRate = parseFloat(shopCommRow?.["ADD COMM"] || 0);
+    // ------------------------------
+    // Commission Rates (from COMM sheet)
+    // ------------------------------
+    const shopCommRow = commData.find(r => normalizeString(r.SHOP) === normalizedShop);
+    const dpCommRate = parseNumber(shopCommRow?.["DP COMM"]);
+    const wdCommRate = parseNumber(shopCommRow?.["WD COMM"]);
+    const addCommRate = parseNumber(shopCommRow?.["ADD COMM"]);
 
-    const dates = new Set([
-      ...depositData.filter(r=>normalizeShopName(r.SHOP)===normalizeShopName(shopName)).map(r => r.DATE),
-      ...withdrawalData.filter(r=>normalizeShopName(r.SHOP)===normalizeShopName(shopName)).map(r => r.DATE),
-      ...stlmData.filter(r=>normalizeShopName(r.SHOP)===normalizeShopName(shopName)).map(r => r.DATE)
+    // ------------------------------
+    // Unique dates across sheets for this shop
+    // ------------------------------
+    const datesSet = new Set([
+      ...depositData.filter(r => normalizeString(r.SHOP) === normalizedShop).map(r => r.DATE),
+      ...withdrawalData.filter(r => normalizeString(r.SHOP) === normalizedShop).map(r => r.DATE),
+      ...stlmData.filter(r => normalizeString(r.SHOP) === normalizedShop).map(r => r.DATE)
     ]);
-    const sortedDates = Array.from(dates).filter(Boolean).sort((a,b) => new Date(a) - new Date(b));
+    const sortedDates = Array.from(datesSet).filter(Boolean).sort((a,b) => new Date(a) - new Date(b));
 
+    // ------------------------------
+    // Initialize running totals
+    // ------------------------------
     let runningBalance = bringForwardBalance;
-    const totals = { depTotal:0, wdTotal:0, inAmt:0, outAmt:0, settlement:0,
-      specialPay:0, adjustment:0, secDep:0, dpComm:0, wdComm:0, addComm:0 };
-
+    const totals = {
+      depTotal:0, wdTotal:0, inAmt:0, outAmt:0, settlement:0,
+      specialPay:0, adjustment:0, secDep:0, dpComm:0, wdComm:0, addComm:0
+    };
     tbody.innerHTML = "";
 
-    // Add Bring Forward Balance row first
+    // ------------------------------
+    // Add B/F Balance row
+    // ------------------------------
     if (bringForwardBalance) {
       const bfbRow = document.createElement("tr");
       bfbRow.innerHTML = `
@@ -87,7 +116,7 @@ async function loadData() {
         <td>0.00</td>
         <td>0.00</td>
         <td>0.00</td>
-        <td>${formatNumber(secDeposit)}</td>
+        <td>${formatNumber(securityDeposit)}</td>
         <td>0.00</td>
         <td>0.00</td>
         <td>0.00</td>
@@ -96,29 +125,36 @@ async function loadData() {
       tbody.appendChild(bfbRow);
     }
 
+    // ------------------------------
+    // Loop through each date
+    // ------------------------------
     for (const date of sortedDates) {
-      const depTotalRow = depositData.filter(r=>normalizeShopName(r.SHOP)===normalizeShopName(shopName) && r.DATE===date)
-        .reduce((sum,r)=>sum+parseNumber(r.AMOUNT),0);
-      const wdTotalRow = withdrawalData.filter(r=>normalizeShopName(r.SHOP)===normalizeShopName(shopName) && r.DATE===date)
-        .reduce((sum,r)=>sum+parseNumber(r.AMOUNT),0);
-      const stlmForDate = stlmData.filter(r=>normalizeShopName(r.SHOP)===normalizeShopName(shopName) && r.DATE===date);
+      const deposits = depositData.filter(r=>normalizeString(r.SHOP)===normalizedShop && r.DATE===date);
+      const withdrawals = withdrawalData.filter(r=>normalizeString(r.SHOP)===normalizedShop && r.DATE===date);
+      const stlmForDate = stlmData.filter(r=>normalizeString(r.SHOP)===normalizedShop && r.DATE===date);
 
-      const modeSum = mode => stlmForDate.filter(r=>r.MODE?.trim().toUpperCase()===mode).reduce((s,r)=>s+parseNumber(r.AMOUNT),0);
-      const inAmtRow = modeSum("IN"), outAmtRow = modeSum("OUT"),
-            settlementRow = modeSum("SETTLEMENT"), specialPayRow = modeSum("SPECIAL PAYMENT"),
-            adjustmentRow = modeSum("ADJUSTMENT"), secDepRow = modeSum("SECURITY DEPOSIT");
+      const depTotalRow = deposits.reduce((s,r)=>s+parseNumber(r.AMOUNT),0);
+      const wdTotalRow = withdrawals.reduce((s,r)=>s+parseNumber(r.AMOUNT),0);
 
-      const dpCommRow = depTotalRow*dpCommRate/100;
-      const wdCommRow = wdTotalRow*wdCommRate/100;
-      const addCommRow = depTotalRow*addCommRate/100;
+      const sumMode = mode => stlmForDate.filter(r => normalizeString(r.MODE)===mode).reduce((s,r)=>s+parseNumber(r.AMOUNT),0);
+      const inAmtRow = sumMode("IN");
+      const outAmtRow = sumMode("OUT");
+      const settlementRow = sumMode("SETTLEMENT");
+      const specialPayRow = sumMode("SPECIAL PAYMENT");
+      const adjustmentRow = sumMode("ADJUSTMENT");
+      const secDepRow = sumMode("SECURITY DEPOSIT");
+
+      const dpCommRow = depTotalRow * dpCommRate / 100;
+      const wdCommRow = wdTotalRow * wdCommRate / 100;
+      const addCommRow = depTotalRow * addCommRate / 100;
 
       runningBalance += depTotalRow - wdTotalRow + inAmtRow - outAmtRow - settlementRow - specialPayRow
-                        + adjustmentRow - secDepRow - dpCommRow - wdCommRow - addCommRow;
+                        + adjustmentRow - dpCommRow - wdCommRow - addCommRow;
 
       totals.depTotal += depTotalRow; totals.wdTotal += wdTotalRow;
       totals.inAmt += inAmtRow; totals.outAmt += outAmtRow; totals.settlement += settlementRow;
-      totals.specialPay += specialPayRow; totals.adjustment += adjustmentRow; totals.secDep += secDepRow;
-      totals.dpComm += dpCommRow; totals.wdComm += wdCommRow; totals.addComm += addCommRow;
+      totals.specialPay += specialPayRow; totals.adjustment += adjustmentRow;
+      totals.secDep += secDepRow; totals.dpComm += dpCommRow; totals.wdComm += wdCommRow; totals.addComm += addCommRow;
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -139,9 +175,15 @@ async function loadData() {
       tbody.appendChild(tr);
     }
 
+    // ------------------------------
+    // Highlight latest row
+    // ------------------------------
     const rows = tbody.querySelectorAll("tr");
     if (rows.length) rows[rows.length-1].classList.add("latest");
 
+    // ------------------------------
+    // Totals row
+    // ------------------------------
     totalsRow.innerHTML = `<td>TOTAL</td>
       <td>${formatNumber(totals.depTotal)}</td>
       <td>${formatNumber(totals.wdTotal)}</td>
@@ -157,8 +199,17 @@ async function loadData() {
       <td>${formatNumber(runningBalance)}</td>
     `;
 
-    document.getElementById("viewDailyBtn").addEventListener("click", ()=>{
-      window.open(`daily_transactions.html?shopName=${encodeURIComponent(shopName)}`,"_blank");
+    // ------------------------------
+    // Attach View Daily Transactions redirect
+    // ------------------------------
+    const btn = document.getElementById("viewDailyBtn");
+    btn.addEventListener("click", () => {
+      const shop = document.getElementById("infoShopName").textContent;
+      if (!shop || shop === "-") {
+        alert("Shop name not available yet. Please wait for data to load.");
+        return;
+      }
+      window.location.href = `daily_transactions.html?shopName=${encodeURIComponent(shop)}`;
     });
 
   } catch(err){
@@ -169,6 +220,7 @@ async function loadData() {
   loadingSpinner.style.display = "none";
 }
 
-function rTrim(v){ return String(v||"").trim(); }
-
+// ------------------------------
+// Initialize
+// ------------------------------
 loadData();
