@@ -1,15 +1,15 @@
 // ------------------------------
-// GSheet JSON URLs
+// Main Sheet URLs
 // ------------------------------
 const WD_URL = "https://opensheet.elk.sh/1CfAAIdWp3TuamCkSUw5w_Vd3QQnjc7LjF4zo4u4eZv0/WD";
 const DP_URL = "https://opensheet.elk.sh/1CfAAIdWp3TuamCkSUw5w_Vd3QQnjc7LjF4zo4u4eZv0/DP";
 const B2B_URL = "https://opensheet.elk.sh/1CfAAIdWp3TuamCkSUw5w_Vd3QQnjc7LjF4zo4u4eZv0/B2B";
 
-// Backup_Index JSON URL
+// Backup_Index URL
 const BACKUP_INDEX_URL = "https://opensheet.elk.sh/<BACKUP_INDEX_SHEET_ID>/Backup_Index";
 
 // ------------------------------
-// Get shopName from URL
+// Shop Name from URL
 // ------------------------------
 const SHOP_NAME = new URLSearchParams(window.location.search).get("shopName") || "";
 
@@ -38,9 +38,12 @@ function parseNumber(v){ return v ? parseFloat(String(v).replace(/,/g,""))||0 : 
 
 function normalizeDate(dateStr){
     if(!dateStr) return "";
-    const d = new Date(dateStr);
-    if(isNaN(d)) return "";
-    return d.toISOString().split("T")[0];
+    const parts = dateStr.split("/");
+    if(parts.length !== 3) return dateStr;
+    const month = parts[0].padStart(2,'0');
+    const day   = parts[1].padStart(2,'0');
+    const year  = parts[2];
+    return `${year}-${month}-${day}`;
 }
 
 function normalizeShopName(name){
@@ -74,7 +77,7 @@ async function fetchSheetData(url){
 }
 
 // ------------------------------
-// Load main GSheet data
+// Load main live data
 // ------------------------------
 async function loadMainData(){
     const wdData = await fetchSheetData(WD_URL);
@@ -90,20 +93,24 @@ async function loadBackupIndex(){
     const indexData = await fetchSheetData(BACKUP_INDEX_URL);
     backupSheets = indexData.map(r => ({
         date: r["Date"],
-        url: r["URL"]
+        WD_URL: r["WD_URL"],
+        DP_URL: r["DP_URL"],
+        B2B_URL: r["B2B_URL"]
     }));
 }
 
 // ------------------------------
-// Load backup data for selected date
+// Load backup for selected date
 // ------------------------------
 async function loadBackupDataByDate(selectedDate){
-    const backup = backupSheets.find(b => b.date === selectedDate);
+    const backup = backupSheets.find(b => normalizeDate(b.date) === selectedDate);
     if(backup){
-        const backupData = await fetchSheetData(backup.url);
-        allTransactions = backupData; // override main data
+        const wdData = await fetchSheetData(backup.WD_URL);
+        const dpData = await fetchSheetData(backup.DP_URL);
+        const b2bData = await fetchSheetData(backup.B2B_URL);
+        allTransactions = [...wdData, ...dpData, ...b2bData];
     } else {
-        alert("No backup available for this date. Showing main data.");
+        alert("No backup available for this date. Showing main live data.");
         await loadMainData();
     }
 }
@@ -116,30 +123,32 @@ async function applyFilters(){
     const selectedDate = dateFilter.value;
 
     if(!selectedDate){
-        // default: load main GSheet
         await loadMainData();
     } else {
-        // try loading backup for selected date
         await loadBackupDataByDate(selectedDate);
     }
 
+    // Filter by current shop first
+    const shopNormalized = normalizeShopName(SHOP_NAME);
+    let shopFiltered = allTransactions.filter(r => r["Shop Name"] === shopNormalized);
+
     // Apply wallet/type filters
-    filteredTransactions = allTransactions.filter(r=>{
-        const shopMatch = SHOP_NAME ? r["Shop Name"] === normalizeShopName(SHOP_NAME) : true;
+    filteredTransactions = shopFiltered.filter(r=>{
         const walletMatch = walletFilter.value==="All" || r["Wallet"]===walletFilter.value;
         const typeMatch = typeFilter.value==="All" || r["Type"]===typeFilter.value;
-        return shopMatch && walletMatch && typeMatch;
+        return walletMatch && typeMatch;
     });
 
+    populateFilters();  // update filter options for current shop
     renderDashboard();
     loadingSpinner.style.display = "none";
 }
 
 // ------------------------------
-// Populate Wallet and Type filters
+// Populate filters
 // ------------------------------
 function populateFilters(){
-    const wallets = Array.from(new Set(allTransactions.map(r=>r["Wallet"]))).sort();
+    const wallets = Array.from(new Set(filteredTransactions.map(r=>r["Wallet"]))).sort();
     walletFilter.innerHTML = '<option value="All">All</option>';
     wallets.forEach(w=>{
         const opt = document.createElement("option");
@@ -147,7 +156,7 @@ function populateFilters(){
         walletFilter.appendChild(opt);
     });
 
-    const types = Array.from(new Set(allTransactions.map(r=>r["Type"]))).sort();
+    const types = Array.from(new Set(filteredTransactions.map(r=>r["Type"]))).sort();
     typeFilter.innerHTML = '<option value="All">All</option>';
     types.forEach(t=>{
         const opt = document.createElement("option");
@@ -157,7 +166,7 @@ function populateFilters(){
 }
 
 // ------------------------------
-// Render dashboard bars
+// Render dashboard
 // ------------------------------
 function renderDashboard(){
     dashboardBars.innerHTML = "";
@@ -168,8 +177,8 @@ function renderDashboard(){
 
     const walletTotals = {};
     filteredTransactions.forEach(r=>{
-        if(!walletTotals[r.Wallet]) walletTotals[r.Wallet] = 0;
-        walletTotals[r.Wallet] += r.Amount;
+        if(!walletTotals[r.Wallet]) walletTotals[r.Wallet]=0;
+        walletTotals[r.Wallet]+=r.Amount;
     });
 
     for(const [wallet, total] of Object.entries(walletTotals)){
@@ -215,9 +224,8 @@ exportBtn.addEventListener("click", exportCSV);
         : "Daily Transaction Dashboard - All Shops";
 
     loadingSpinner.style.display = "block";
-    await loadBackupIndex();  // Load Backup_Index first
-    await loadMainData();     // Default: main GSheet
-    populateFilters();
+    await loadBackupIndex();
+    await loadMainData();
     applyFilters();
     loadingSpinner.style.display = "none";
 })();
