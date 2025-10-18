@@ -1,18 +1,19 @@
 export async function handler(event, context) {
-  const auth = event.headers.authorization || '';
-  const base64Credentials = auth.split(' ')[1] || '';
-  const [user, pass] = Buffer.from(base64Credentials, 'base64').toString().split(':');
+  const authHeader = event.headers.authorization;
 
-  if (user !== 'sspline2' || pass !== 'sctreport2025') {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
       statusCode: 401,
-      headers: { 'WWW-Authenticate': 'Basic' },
-      body: 'Unauthorized'
+      body: JSON.stringify({ code: 401, msg: 'This endpoint requires a Bearer token' })
     };
   }
 
+  const token = authHeader.replace('Bearer ', '');
+
+  // Optionally verify token if needed
+
   return {
     statusCode: 200,
-    body: 'Welcome to the site!'
+    body: JSON.stringify({ msg: 'Authorized access!' })
   };
 }
