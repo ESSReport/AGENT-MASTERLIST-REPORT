@@ -1,26 +1,22 @@
-/* ---------- Netlify Identity Authentication ---------- */
-import netlifyIdentity from 'netlify-identity-widget';
-
-// Initialize Netlify Identity
-netlifyIdentity.init();
-
-// Check if user is logged in
-const user = netlifyIdentity.currentUser();
-
-if (!user) {
-  // Redirect to Netlify Identity login page if not logged in
-  window.location.href = '/.netlify/identity';
-}
-
-/* ---------- Dashboard Logic ---------- */
-
 const SHEET_ID = "1lukJC1vKSq02Nus23svZ21_pp-86fz0mU1EARjalCBI";
 const OPENSHEET_URL = `https://opensheet.elk.sh/${SHEET_ID}/SHOPS%20BALANCE`;
 
 const HEADERS = [
-  "SHOP NAME", "TEAM LEADER", "SECURITY DEPOSIT", "BRING FORWARD BALANCE",
-  "TOTAL DEPOSIT", "TOTAL WITHDAWAL", "INTERNAL TRANSFER IN", "INTERNAL TRANSAFER OUT",
-  "SETTLEMENT", "SPECIAL PAYMENT", "ADJUSTMENT", "DP COMM", "WD COMM", "ADD COMM", "RUNNING BALANCE",
+  "SHOP NAME",
+  "TEAM LEADER",
+  "SECURITY DEPOSIT",
+  "BRING FORWARD BALANCE",
+  "TOTAL DEPOSIT",
+  "TOTAL WITHDAWAL",
+  "INTERNAL TRANSFER IN",
+  "INTERNAL TRANSAFER OUT",
+  "SETTLEMENT",
+  "SPECIAL PAYMENT",
+  "ADJUSTMENT",
+  "DP COMM",
+  "WD COMM",
+  "ADD COMM",
+  "RUNNING BALANCE",
 ];
 
 const cleanKey = (k) => String(k || "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -54,11 +50,13 @@ async function loadDashboard() {
   rawData = data;
   buildTeamLeaderDropdown(data);
 
+  // Auto-filter if URL contains teamLeader param
   const urlParams = new URLSearchParams(window.location.search);
   const teamLeaderParam = urlParams.get("teamLeader");
 
   if (teamLeaderParam) {
     document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
+    // Hide dropdown and link
     document.getElementById("leaderFilter").style.display = "none";
     document.getElementById("teamDashboardLink").style.display = "none";
   }
@@ -86,19 +84,41 @@ function buildSummary(data) {
   data.forEach(r => {
     const shop = (r["SHOP"] || r["SHOP NAME"] || "").trim();
     if (!shop) return;
+
     const leader = (r["TEAM LEADER"] || "").trim().toUpperCase();
 
     if (!summary[shop]) {
-      summary[shop] = Object.fromEntries(HEADERS.map(h => [h, 0]));
-      summary[shop]["SHOP NAME"] = shop;
-      summary[shop]["TEAM LEADER"] = leader;
+      summary[shop] = {
+        "SHOP NAME": shop,
+        "TEAM LEADER": leader,
+        "SECURITY DEPOSIT": 0,
+        "BRING FORWARD BALANCE": 0,
+        "TOTAL DEPOSIT": 0,
+        "TOTAL WITHDAWAL": 0,
+        "INTERNAL TRANSFER IN": 0,
+        "INTERNAL TRANSAFER OUT": 0,
+        "SETTLEMENT": 0,
+        "SPECIAL PAYMENT": 0,
+        "ADJUSTMENT": 0,
+        "DP COMM": 0,
+        "WD COMM": 0,
+        "ADD COMM": 0,
+        "RUNNING BALANCE": 0,
+      };
     }
 
-    HEADERS.forEach(h => {
-      if (!["SHOP NAME", "TEAM LEADER", "RUNNING BALANCE"].includes(h)) {
-        summary[shop][h] += parseNumber(r[h]);
-      }
-    });
+    summary[shop]["SECURITY DEPOSIT"] += parseNumber(r["SECURITY DEPOSIT"]);
+    summary[shop]["BRING FORWARD BALANCE"] += parseNumber(r["BRING FORWARD BALANCE"]);
+    summary[shop]["TOTAL DEPOSIT"] += parseNumber(r["TOTAL DEPOSIT"]);
+    summary[shop]["TOTAL WITHDAWAL"] += parseNumber(r["TOTAL WITHDAWAL"]);
+    summary[shop]["INTERNAL TRANSFER IN"] += parseNumber(r["INTERNAL TRANSFER IN"]);
+    summary[shop]["INTERNAL TRANSAFER OUT"] += parseNumber(r["INTERNAL TRANSAFER OUT"]);
+    summary[shop]["SETTLEMENT"] += parseNumber(r["SETTLEMENT"]);
+    summary[shop]["SPECIAL PAYMENT"] += parseNumber(r["SPECIAL PAYMENT"]);
+    summary[shop]["ADJUSTMENT"] += parseNumber(r["ADJUSTMENT"]);
+    summary[shop]["DP COMM"] += parseNumber(r["DP COMM"]);
+    summary[shop]["WD COMM"] += parseNumber(r["WD COMM"]);
+    summary[shop]["ADD COMM"] += parseNumber(r["ADD COMM"]);
 
     const rb =
       summary[shop]["BRING FORWARD BALANCE"] +
@@ -175,6 +195,7 @@ function updatePagination() {
   document.getElementById("nextPage").disabled = currentPage === totalPages || totalPages === 0;
 }
 
+/* ---------- Totals Bar ---------- */
 function renderTotals() {
   const totalsDiv = document.getElementById("totalsRow");
   totalsDiv.innerHTML = "";
@@ -190,6 +211,7 @@ function renderTotals() {
   });
 }
 
+/* ---------- Team Leader Link ---------- */
 function updateTeamDashboardLink() {
   const leader = document.getElementById("leaderFilter").value;
   const linkDiv = document.getElementById("teamDashboardLink");
@@ -206,6 +228,7 @@ function updateTeamDashboardLink() {
   }
 }
 
+/* ---------- Event Listeners ---------- */
 document.getElementById("leaderFilter").addEventListener("change", filterData);
 document.getElementById("searchInput").addEventListener("input", filterData);
 document.getElementById("prevPage").addEventListener("click", () => { currentPage--; renderTable(); });
@@ -233,6 +256,7 @@ function filterData() {
   renderTable();
 }
 
+/* ---------- CSV Export (Cross-Platform) ---------- */
 function exportCSV() {
   let csv = HEADERS.join(",") + "\n";
   filteredData.forEach(r => {
@@ -242,15 +266,21 @@ function exportCSV() {
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
 
+  // Detect device
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isAndroid = /Android/.test(navigator.userAgent);
 
   if (isIOS || isAndroid) {
+    // Mobile workaround: open in new tab
     const url = URL.createObjectURL(blob);
     const newTab = window.open(url, "_blank");
-    if (!newTab) alert("Please allow popups to download the file.");
-    else newTab.document.title = "shops_balance.csv";
+    if (!newTab) {
+      alert("Please allow popups to download the file.");
+    } else {
+      newTab.document.title = "shops_balance.csv";
+    }
   } else {
+    // Desktop browsers: direct download
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -259,6 +289,5 @@ function exportCSV() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
-
-/* ---------- Initialize Dashboard ---------- */
+/* ---------- INIT ---------- */
 loadDashboard();
