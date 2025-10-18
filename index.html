@@ -1,53 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
-  <!-- Netlify Identity Widget -->
-<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shops Balance Dashboard</title>
 
-  <!-- ✅ External CSS file -->
+  <!-- External CSS -->
   <link rel="stylesheet" href="styles.css">
 
-  <!-- 🔒 Simple PIN Protection -->
-  <script>
-    // Change this PIN to your own
-    const encodedPass = "MTEwMTIwMjU="; // base64 for "11012025"
-    const entered = prompt("Enter PIN to access dashboard:");
-
-    if (btoa(entered) !== encodedPass) {
-      document.body.innerHTML = `
-        <h2 style="color:red;text-align:center;margin-top:40px;">
-          Access Denied ❌<br>Invalid PIN
-        </h2>`;
-      throw new Error("Access denied");
-    }
-  </script>
+  <!-- Netlify Identity Widget -->
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
 
 <body>
   <h2>SSP(Line2) Report Balance Summary</h2>
 
-  <!-- Toolbar (Filters & Actions) -->
+  <!-- Toolbar -->
   <div class="toolbar">
     <select id="leaderFilter">
       <option value="ALL">All Team Leaders</option>
     </select>
 
-    <input type="text" id="searchInput" placeholder="🔍 Search Shop Name..." />
+    <input type="text" id="searchInput" placeholder="🔍 Search Shop Name...">
 
     <button id="exportBtn">💾 Export CSV</button>
     <button id="resetBtn" style="background:#888;">🔄 Reset</button>
   </div>
 
-  <!-- Link to open filtered dashboard in new tab -->
+  <!-- Link to open filtered dashboard -->
   <div id="teamDashboardLink"></div>
 
   <!-- Table Container -->
   <div id="tableContainer">
     <table id="shopTable">
-      <thead><tr id="tableHeader"></tr></thead>
+      <thead>
+        <tr id="tableHeader"></tr>
+      </thead>
       <tbody id="tableBody"></tbody>
     </table>
   </div>
@@ -62,9 +51,24 @@
   <!-- Totals Summary -->
   <div id="totalsRow"></div>
 
-  <!-- Your dashboard logic -->
+  <!-- Dashboard Logic -->
   <script src="dashboard.js"></script>
+
+  <!-- Netlify Identity Authentication -->
+  <script>
+    // Initialize Netlify Identity
+    netlifyIdentity.init();
+
+    // Redirect to login if user is not logged in
+    const user = netlifyIdentity.currentUser();
+
+    if (!user) {
+      // Option 1: Redirect to Netlify Identity login page
+      window.location.href = '/.netlify/identity';
+
+      // Option 2: Uncomment to show a login modal instead
+      // netlifyIdentity.open();
+    }
+  </script>
 </body>
 </html>
-
-
