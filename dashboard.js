@@ -7,7 +7,7 @@ const HEADERS = [
   "SECURITY DEPOSIT",
   "BRING FORWARD BALANCE",
   "TOTAL DEPOSIT",
-  "TOTAL WITHDRAWAL",
+  "TOTAL WITHDAWAL",
   "INTERNAL TRANSFER IN",
   "INTERNAL TRANSAFER OUT",
   "SETTLEMENT",
@@ -56,7 +56,6 @@ async function loadDashboard() {
 
   if (teamLeaderParam) {
     document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
-    // Hide dropdown and link
     document.getElementById("leaderFilter").style.display = "none";
     document.getElementById("teamDashboardLink").style.display = "none";
   }
@@ -86,6 +85,7 @@ function buildSummary(data) {
     if (!shop) return;
 
     const leader = (r["TEAM LEADER"] || "").trim().toUpperCase();
+    const wallet = (r["WALLET NUMBER"] || "").trim();
 
     if (!summary[shop]) {
       summary[shop] = {
@@ -94,7 +94,7 @@ function buildSummary(data) {
         "SECURITY DEPOSIT": 0,
         "BRING FORWARD BALANCE": 0,
         "TOTAL DEPOSIT": 0,
-        "TOTAL WITHDRAWAL": 0,
+        "TOTAL WITHDAWAL": 0,
         "INTERNAL TRANSFER IN": 0,
         "INTERNAL TRANSAFER OUT": 0,
         "SETTLEMENT": 0,
@@ -104,13 +104,14 @@ function buildSummary(data) {
         "WD COMM": 0,
         "ADD COMM": 0,
         "RUNNING BALANCE": 0,
+        "WALLET NUMBER": wallet,
       };
     }
 
     summary[shop]["SECURITY DEPOSIT"] += parseNumber(r["SECURITY DEPOSIT"]);
     summary[shop]["BRING FORWARD BALANCE"] += parseNumber(r["BRING FORWARD BALANCE"]);
     summary[shop]["TOTAL DEPOSIT"] += parseNumber(r["TOTAL DEPOSIT"]);
-    summary[shop]["TOTAL WITHDRAWAL"] += parseNumber(r["TOTAL WITHDRAWAL"]);
+    summary[shop]["TOTAL WITHDAWAL"] += parseNumber(r["TOTAL WITHDAWAL"]);
     summary[shop]["INTERNAL TRANSFER IN"] += parseNumber(r["INTERNAL TRANSFER IN"]);
     summary[shop]["INTERNAL TRANSAFER OUT"] += parseNumber(r["INTERNAL TRANSAFER OUT"]);
     summary[shop]["SETTLEMENT"] += parseNumber(r["SETTLEMENT"]);
@@ -123,7 +124,7 @@ function buildSummary(data) {
     const rb =
       summary[shop]["BRING FORWARD BALANCE"] +
       summary[shop]["TOTAL DEPOSIT"] -
-      summary[shop]["TOTAL WITHDRAWAL"] +
+      summary[shop]["TOTAL WITHDAWAL"] +
       summary[shop]["INTERNAL TRANSFER IN"] -
       summary[shop]["INTERNAL TRANSAFER OUT"] -
       summary[shop]["SETTLEMENT"] -
@@ -163,7 +164,8 @@ function renderTable() {
       const td = document.createElement("td");
       if (h === "SHOP NAME") {
         const a = document.createElement("a");
-        a.textContent = r[h] || "";
+        const wallet = r["WALLET NUMBER"] ? ` (${r["WALLET NUMBER"]})` : "";
+        a.textContent = `${r[h] || ""}${wallet}`;
         a.href = `shop_dashboard.html?shopName=${encodeURIComponent(r[h] || "")}`;
         a.target = "_blank";
         a.className = "shop-link";
@@ -256,7 +258,7 @@ function filterData() {
   renderTable();
 }
 
-/* ---------- CSV Export (Cross-Platform) ---------- */
+/* ---------- CSV Export ---------- */
 function exportCSV() {
   let csv = HEADERS.join(",") + "\n";
   filteredData.forEach(r => {
@@ -265,30 +267,13 @@ function exportCSV() {
   });
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-
-  // Detect device
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isAndroid = /Android/.test(navigator.userAgent);
-
-  if (isIOS || isAndroid) {
-    // Mobile workaround: open in new tab
-    const url = URL.createObjectURL(blob);
-    const newTab = window.open(url, "_blank");
-    if (!newTab) {
-      alert("Please allow popups to download the file.");
-    } else {
-      newTab.document.title = "shops_balance.csv";
-    }
-  } else {
-    // Desktop browsers: direct download
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "shops_balance.csv";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "shops_balance.csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
 /* ---------- INIT ---------- */
 loadDashboard();
-
