@@ -4,6 +4,7 @@ const OPENSHEET_URL = `https://opensheet.elk.sh/${SHEET_ID}/SHOPS%20BALANCE`;
 const HEADERS = [
   "SHOP NAME",
   "TEAM LEADER",
+  "GROUP NAME",
   "SECURITY DEPOSIT",
   "BRING FORWARD BALANCE",
   "TOTAL DEPOSIT",
@@ -49,6 +50,7 @@ async function loadDashboard() {
   const data = await fetchShopBalance();
   rawData = data;
   buildTeamLeaderDropdown(data);
+  buildGroupDropdown(data);
 
   // Auto-filter if URL contains teamLeader param
   const urlParams = new URLSearchParams(window.location.search);
@@ -78,6 +80,28 @@ function buildTeamLeaderDropdown(data) {
   });
 }
 
+function buildGroupDropdown(data, selectedLeader = "ALL") {
+  const dropdown = document.getElementById("groupFilter");
+  dropdown.innerHTML = '<option value="ALL">All Groups</option>';
+
+  // Filter groups based on selected team leader
+  const groups = [...new Set(
+    data
+      .filter(r =>
+        selectedLeader === "ALL" ||
+        (r["TEAM LEADER"] || "").trim().toUpperCase() === selectedLeader
+      )
+      .map(r => (r["GROUP NAME"] || "").trim().toUpperCase())
+  )].filter(name => name && name !== "#N/A" && name !== "N/A");
+
+  groups.sort().forEach(g => {
+    const opt = document.createElement("option");
+    opt.value = g;
+    opt.textContent = g;
+    dropdown.appendChild(opt);
+  });
+}
+
 function buildSummary(data) {
   const summary = {};
   data.forEach(r => {
@@ -85,12 +109,14 @@ function buildSummary(data) {
     if (!shop) return;
 
     const leader = (r["TEAM LEADER"] || "").trim().toUpperCase();
+    const group = (r["GROUP NAME"] || "").trim().toUpperCase();
     const wallet = (r["WALLET NUMBER"] || "").trim();
 
     if (!summary[shop]) {
       summary[shop] = {
         "SHOP NAME": shop,
         "TEAM LEADER": leader,
+        "GROUP NAME": group,
         "SECURITY DEPOSIT": 0,
         "BRING FORWARD BALANCE": 0,
         "TOTAL DEPOSIT": 0,
@@ -151,7 +177,7 @@ function renderTable() {
   HEADERS.forEach(h => {
     const th = document.createElement("th");
     th.textContent = h;
-    if (h === "SHOP NAME" || h === "TEAM LEADER") th.classList.add("left");
+    if (["SHOP NAME", "TEAM LEADER", "GROUP NAME"].includes(h)) th.classList.add("left");
     tableHead.appendChild(th);
   });
 
@@ -171,7 +197,7 @@ function renderTable() {
         a.className = "shop-link";
         td.appendChild(a);
         td.classList.add("left");
-      } else if (h === "TEAM LEADER") {
+      } else if (["TEAM LEADER", "GROUP NAME"].includes(h)) {
         td.textContent = r[h] || "";
         td.classList.add("left");
       } else {
@@ -203,7 +229,7 @@ function renderTotals() {
   totalsDiv.innerHTML = "";
 
   HEADERS.forEach(h => {
-    if (["SHOP NAME", "TEAM LEADER"].includes(h)) return;
+    if (["SHOP NAME", "TEAM LEADER", "GROUP NAME"].includes(h)) return;
     const total = filteredData.reduce((a, b) => a + (parseNumber(b[h]) || 0), 0);
     const card = document.createElement("div");
     card.className = "total-card";
@@ -231,13 +257,35 @@ function updateTeamDashboardLink() {
 }
 
 /* ---------- Event Listeners ---------- */
-document.getElementById("leaderFilter").addEventListener("change", filterData);
+document.getElementById("leaderFilter").addEventListener("change", () => {
+  const selectedLeader = document.getElementById("leaderFilter").value;
+  buildGroupDropdown(rawData, selectedLeader);
+  document.getElementById("groupFilter").value = "ALL";
+  filterData();
+});
+
+document.getElementById("groupFilter").addEventListener("change", () => {
+  const selectedGroup = document.getElementById("groupFilter").value;
+  if (selectedGroup !== "ALL") {
+    // auto-select matching team leader
+    const match = rawData.find(
+      r => (r["GROUP NAME"] || "").trim().toUpperCase() === selectedGroup
+    );
+    if (match) {
+      document.getElementById("leaderFilter").value = (match["TEAM LEADER"] || "").trim().toUpperCase();
+    }
+  }
+  filterData();
+});
+
 document.getElementById("searchInput").addEventListener("input", filterData);
 document.getElementById("prevPage").addEventListener("click", () => { currentPage--; renderTable(); });
 document.getElementById("nextPage").addEventListener("click", () => { currentPage++; renderTable(); });
 document.getElementById("resetBtn").addEventListener("click", () => {
   document.getElementById("leaderFilter").value = "ALL";
+  document.getElementById("groupFilter").value = "ALL";
   document.getElementById("searchInput").value = "";
+  buildGroupDropdown(rawData, "ALL");
   filteredData = cachedData;
   currentPage = 1;
   renderTable();
@@ -246,12 +294,14 @@ document.getElementById("exportBtn").addEventListener("click", exportCSV);
 
 function filterData() {
   const leader = document.getElementById("leaderFilter").value;
+  const group = document.getElementById("groupFilter").value;
   const search = document.getElementById("searchInput").value.trim().toUpperCase();
 
   filteredData = cachedData.filter(r => {
     const matchLeader = leader === "ALL" || (r["TEAM LEADER"] || "").toUpperCase() === leader;
+    const matchGroup = group === "ALL" || (r["GROUP NAME"] || "").toUpperCase() === group;
     const matchSearch = (r["SHOP NAME"] || "").toUpperCase().includes(search);
-    return matchLeader && matchSearch;
+    return matchLeader && matchGroup && matchSearch;
   });
 
   currentPage = 1;
