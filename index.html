@@ -3,17 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SSP Line2 Balance Dashboard</title>
+  <title>Shops Balance Dashboard</title>
 
   <!-- ✅ External CSS file -->
   <link rel="stylesheet" href="styles.css">
 
   <!-- 🔒 Simple PIN Protection -->
   <script>
-    // Change this PIN to your own
     const encodedPass = "MTEwMTIwMjU="; // base64 for "11012025"
     const entered = prompt("Enter PIN to access dashboard:");
-
     if (btoa(entered) !== encodedPass) {
       document.body.innerHTML = `
         <h2 style="color:red;text-align:center;margin-top:40px;">
@@ -31,6 +29,10 @@
   <div class="toolbar">
     <select id="leaderFilter">
       <option value="ALL">All Team Leaders</option>
+    </select>
+
+    <select id="groupFilter">
+      <option value="ALL">All Groups</option>
     </select>
 
     <input type="text" id="searchInput" placeholder="🔍 Search Shop Name..." />
@@ -64,4 +66,3 @@
   <script src="dashboard.js"></script>
 </body>
 </html>
-
