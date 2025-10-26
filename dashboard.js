@@ -39,6 +39,7 @@ let cachedData = [];
 let currentPage = 1;
 const rowsPerPage = 20;
 
+/* ---------- FETCH DATA ---------- */
 async function fetchShopBalance() {
   const res = await fetch(OPENSHEET_URL);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -46,26 +47,35 @@ async function fetchShopBalance() {
   return json.map(normalize);
 }
 
+/* ---------- INIT DASHBOARD ---------- */
 async function loadDashboard() {
   const data = await fetchShopBalance();
   rawData = data;
-  buildTeamLeaderDropdown(data);
-  buildGroupDropdown(data);
 
-  // Auto-filter if URL contains teamLeader param
+  // Read teamLeader param from URL (if any)
   const urlParams = new URLSearchParams(window.location.search);
-  const teamLeaderParam = urlParams.get("teamLeader");
+  const teamLeaderParam = urlParams.get("teamLeader")
+    ? urlParams.get("teamLeader").toUpperCase()
+    : "ALL";
 
-  if (teamLeaderParam) {
-    document.getElementById("leaderFilter").value = teamLeaderParam.toUpperCase();
+  // Build dropdowns (filter groups if a leader is preselected)
+  buildTeamLeaderDropdown(data);
+  buildGroupDropdown(data, teamLeaderParam);
+
+  // If a leader is in the URL, preselect and hide leader dropdown
+  if (teamLeaderParam !== "ALL") {
+    document.getElementById("leaderFilter").value = teamLeaderParam;
     document.getElementById("leaderFilter").style.display = "none";
     document.getElementById("teamDashboardLink").style.display = "none";
   }
 
   buildSummary(data);
-  if (teamLeaderParam) filterData();
+
+  // Apply filter automatically if a leader is in the URL
+  if (teamLeaderParam !== "ALL") filterData();
 }
 
+/* ---------- BUILD DROPDOWNS ---------- */
 function buildTeamLeaderDropdown(data) {
   const dropdown = document.getElementById("leaderFilter");
   dropdown.innerHTML = '<option value="ALL">All Team Leaders</option>';
@@ -84,7 +94,6 @@ function buildGroupDropdown(data, selectedLeader = "ALL") {
   const dropdown = document.getElementById("groupFilter");
   dropdown.innerHTML = '<option value="ALL">All Groups</option>';
 
-  // Filter groups based on selected team leader
   const groups = [...new Set(
     data
       .filter(r =>
@@ -102,6 +111,7 @@ function buildGroupDropdown(data, selectedLeader = "ALL") {
   });
 }
 
+/* ---------- BUILD SUMMARY DATA ---------- */
 function buildSummary(data) {
   const summary = {};
   data.forEach(r => {
@@ -168,6 +178,7 @@ function buildSummary(data) {
   renderTable();
 }
 
+/* ---------- RENDER TABLE ---------- */
 function renderTable() {
   const tableHead = document.getElementById("tableHeader");
   const tableBody = document.getElementById("tableBody");
@@ -216,14 +227,16 @@ function renderTable() {
   updateTeamDashboardLink();
 }
 
+/* ---------- PAGINATION ---------- */
 function updatePagination() {
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
   document.getElementById("prevPage").disabled = currentPage === 1;
-  document.getElementById("nextPage").disabled = currentPage === totalPages || totalPages === 0;
+  document.getElementById("nextPage").disabled =
+    currentPage === totalPages || totalPages === 0;
 }
 
-/* ---------- Totals Bar ---------- */
+/* ---------- TOTALS ---------- */
 function renderTotals() {
   const totalsDiv = document.getElementById("totalsRow");
   totalsDiv.innerHTML = "";
@@ -239,11 +252,11 @@ function renderTotals() {
   });
 }
 
-/* ---------- Team Leader Link ---------- */
+/* ---------- TEAM LEADER LINK ---------- */
 function updateTeamDashboardLink() {
   const leader = document.getElementById("leaderFilter").value;
   const linkDiv = document.getElementById("teamDashboardLink");
-  
+
   if (leader && leader !== "ALL") {
     const url = `${window.location.origin}${window.location.pathname}?teamLeader=${encodeURIComponent(leader)}`;
     linkDiv.innerHTML = `
@@ -256,7 +269,7 @@ function updateTeamDashboardLink() {
   }
 }
 
-/* ---------- Event Listeners ---------- */
+/* ---------- FILTERING & EVENTS ---------- */
 document.getElementById("leaderFilter").addEventListener("change", () => {
   const selectedLeader = document.getElementById("leaderFilter").value;
   buildGroupDropdown(rawData, selectedLeader);
@@ -267,7 +280,6 @@ document.getElementById("leaderFilter").addEventListener("change", () => {
 document.getElementById("groupFilter").addEventListener("change", () => {
   const selectedGroup = document.getElementById("groupFilter").value;
   if (selectedGroup !== "ALL") {
-    // auto-select matching team leader
     const match = rawData.find(
       r => (r["GROUP NAME"] || "").trim().toUpperCase() === selectedGroup
     );
@@ -308,7 +320,7 @@ function filterData() {
   renderTable();
 }
 
-/* ---------- CSV Export ---------- */
+/* ---------- CSV EXPORT ---------- */
 function exportCSV() {
   let csv = HEADERS.join(",") + "\n";
   filteredData.forEach(r => {
